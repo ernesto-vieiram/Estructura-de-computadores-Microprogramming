@@ -1,0 +1,137 @@
+.kdata
+   vector:  .word rt_div0
+            .word rt_sys
+
+   msgi1:   .asciiz "FPE: / by 0\n"
+
+.ktext
+sys_prt_str: li   $1 1
+             li   $0 0
+             beq  $26 $0 fin1
+         b5: lb   $27 ($26)
+             beq  $27 $0 fin1
+             out  $27 0x1000
+             add  $26 $26 $1
+             b  b5
+       fin1: reti
+      
+sys_prt_int: li   $1 1
+             # push_byte('\0')
+             sb   $0 ($sp)
+             sub  $sp $sp $1
+         b3: # push_byte(rem(x,10)+48)
+             # x = div(x,10)
+             li   $1 10
+             rem  $27 $26 $1
+             div  $26 $26 $1
+             li   $1 48
+             add  $27 $27 $1
+             li   $1 1
+             sb   $27 ($sp)
+             sub  $sp $sp $1
+             bne  $26 $0 b3
+         f3: # print_string($sp)
+             add  $sp $sp $1
+             lb   $27 ($sp)
+             beq  $27 $0 f2
+             out  $27 0x1000
+             b f3
+         f2: reti
+
+sys_prt_ch:  li   $0 0
+         b6: beq  $27 $0 fin3
+             out  $a0 0x1000
+             b  b6
+       fin3: reti
+
+   rt_sys:   # 1.- syscall
+             move $26 $a0
+             li   $27 4
+             beq  $v0 $27 sys_prt_str
+             li   $27 1
+             beq  $v0 $27 sys_prt_int
+             li   $27 11
+             beq  $v0 $27 sys_prt_ch
+             reti 
+
+   rt_div0:  # 3.- exception
+             la   $26 msgi1
+             b    sys_prt_str
+
+
+ .data
+    matrizA: .word 4,6,3,4,5,6,7,8,9
+    matrizB: .word 9,8,7,6,7,4,3,2,99
+    destino: .space 36
+.text
+    main:  #declaro variables
+           
+           la $s3 destino
+           la $t0 matrizA 
+           la $t3 matrizB 
+           move $t4 $zero #comparador a 3 
+           li $t5 3 #para tener el numero 3 que me va a servir ya que las matrices son de 3*3
+           li $s1 1 #para sumar 1
+           li $s2 0 #contador destino
+           li $s4 0#contador filas
+           li $s5 0#contador programa
+           li $s0 12#para ir al siguiente elemento
+           li $t6 4#para ir al elemento de la fila de abajo
+           move $t7 $zero#lo voy a usar para hacer calculos durante el programa
+           for1:#Es el bucle que hara la operacion de multiplicar una fila de la matriz A por una columna de la matriz B
+           beq $t4 $t5 cambiocolumnaB #va a cambio columna b porque ya habra calculado el primer numero de la matriz y asi en bucle 
+           lw $t1, ($t0) #al no poder hacer mma guardo los valores de las direcciones en registros 
+           lw $t2, ($t3)
+           mul $t1,$t1,$t2
+           add $t7, $t7, $t1
+         
+           add $t0 $t0 $t6 #para el siguiente elemento de la fila correspondiente de A
+           add $t3 $t3 $s0 #para el siguiente elemento de la columna correspondiente de B
+           add $t4 $t4 $s1 #contador +1
+           b for1
+           
+           
+           cambiocolumnaB:#Este bloque de codigo se encarga de cambiar la columna de la matriz B manteniendo todavia la fila de la matriz A
+           #Ademas al llegar a tres el contador ira a cambiuarfilaA y este se reiniciara
+
+           sw $t7 ($s3)#mete el resultado en la matriz 
+           add $s3 $s3 $t6 #le suma 4 a la matriz s3 para que el siguiente elemento vaya en la siguiente posicion
+           
+          move $t7 $zero #restablezco t7
+           move $t4 $zero #restablezco t4
+           add $s4 $s4 $s1 #añado 1 a s4 que cuando llegue a 3 significaria que la fila ya ha multiplicado a las 3 columnas 
+           beq $s4 $t5 cambiofilaA #e ira a cambio de fila
+           
+           la $t0 matrizA#si no solo hay que cambiar la columna de B entonces pongo el primer elemento de la fila correspondiente  
+           mul $t7 $s0 $s5#con esta y la siguiente linea podemos saber en que fila de a estamos estos elementos cambian en cambiofilaA
+           add $t0 $t0 $t7
+           la $t3 matrizB # con esto pongo la columna correspondientes s4 es 
+           mul $t7 $t6 $s4
+           add $t3 $t3 $t7
+           move $t7 $zero
+          
+           
+           b for1
+           cambiofilaA:#Es el encargado de al haber multiplicado una fila de la matriz A a las tres columnas de la matriz B cambiar la fila de la matriz A al llegar a 3 el programa se acabará
+           add $s5 $s5 $s1#contador que cuando llega a tres es que ya todas las filas han multiplicado a todas las columnas 
+           beq $s5 $t5 fin
+           
+           la $t3 matrizB #pone a t3 en la primera columna 
+           la $t0 matrizA #Y a la matriz A la mueve a la siguiente fila
+           mul $t7 $s0 $s5
+           add $t0 $t0 $t7
+           move $s4 $zero#ponemos el contador de las columnas a 0
+           move $t7 $zero#y el valor t7 para calcular tambien a zero ya que se usa en multiples operaciones
+           b for1
+						fin: 
+          #Cierro el programa
+           jr $ra
+
+
+
+
+
+
+
+         		
+

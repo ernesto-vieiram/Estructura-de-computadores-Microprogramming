@@ -1,0 +1,552 @@
+.kdata
+   vector:  .word rt_div0
+            .word rt_sys
+
+   msgi1:   .asciiz "FPE: / by 0\n"
+
+.ktext
+sys_prt_str: li   $1 1
+             li   $0 0
+             beq  $26 $0 fin1
+         b5: lb   $27 ($26)
+             beq  $27 $0 fin1
+             out  $27 0x1000
+             add  $26 $26 $1
+             b  b5
+       fin1: reti
+      
+sys_prt_int: li   $1 1
+             # push_byte('\0')
+             sb   $0 ($sp)
+             sub  $sp $sp $1
+         b3: # push_byte(rem(x,10)+48)
+             # x = div(x,10)
+             li   $1 10
+             rem  $27 $26 $1
+             div  $26 $26 $1
+             li   $1 48
+             add  $27 $27 $1
+             li   $1 1
+             sb   $27 ($sp)
+             sub  $sp $sp $1
+             bne  $26 $0 b3
+         f3: # print_string($sp)
+             add  $sp $sp $1
+             lb   $27 ($sp)
+             beq  $27 $0 f2
+             out  $27 0x1000
+             b f3
+         f2: reti
+
+sys_prt_ch:  li   $0 0
+         b6: beq  $27 $0 fin3
+             out  $a0 0x1000
+             b  b6
+       fin3: reti
+
+   rt_sys:   # 1.- syscall
+             move $26 $a0
+             li   $27 4
+             beq  $v0 $27 sys_prt_str
+             li   $27 1
+             beq  $v0 $27 sys_prt_int
+             li   $27 11
+             beq  $v0 $27 sys_prt_ch
+             reti 
+
+   rt_div0:  # 3.- exception
+             la   $26 msgi1
+             b    sys_prt_str
+
+
+.data
+    msg_ok: .asciiz "OK: "
+    msg_error: .asciiz "ERROR: "
+    
+    n1: .word 5
+    n2: .word 7
+    n3: .word 17
+    
+    destino: .space 4
+    
+    salto_linea: .asciiz "\n"
+
+.text
+    main:  
+           la $t1 n1
+           la $t2 n2
+           la $t3 n3
+           la $t0 destino
+
+           test_1:
+           #Prueba 1: madd. Resultado esperado n1 + n2 = 5 + 7 = 12
+           madd $t0 $t1 $t2
+           lw $t4 ($t0)
+           li $t5 12
+           bne $t4 $t5 error_madd
+           #Imprimir OK
+           la  $a0 msg_ok
+           li  $v0 4
+           syscall
+           li $a0 1
+           li $v0 1
+           syscall
+           b test_2
+           error_madd:
+           la $a0 msg_error
+           li $v0 4
+           syscall
+           li $a0 1
+           li $v0 1
+           syscall
+     
+           test_2:
+           #imprimir salto de linea
+           la $a0, salto_linea
+           li $v0 4
+           syscall
+          
+           #Prueba 2: mmul. Resultado esperado n1 * n2 = 5 * 7 = 35
+           mmul $t0 $t1 $t2
+           lw $t4 ($t0)
+           li $t5 35
+           bne $t4 $t5 error_mmul
+           #Imprimir OK
+           la  $a0 msg_ok
+           li  $v0 4
+           syscall
+           li $a0 2
+           li $v0 1
+           syscall
+           b test_3
+           error_mmul:
+           la $a0 msg_error
+           li $v0 4
+           syscall
+           li $a0 2
+           li $v0 1
+           syscall
+           
+           test_3:
+           #imprimir salto de linea
+           la $a0, salto_linea
+           li $v0 4
+           syscall
+          
+           #Prueba 3: mxch. Resultado esperado n1 = 7; n2 = 5
+           lw $t4 ($t1)
+           lw $t5 ($t2)
+           mxch $t1 $t2
+           lw $t6 ($t1)
+           lw $t7 ($t2)
+           bne $t4 $t7 error_mxch
+           bne $t5 $t6 error_mxch
+           #Imprimir OK
+           la  $a0 msg_ok
+           li  $v0 4
+           syscall
+           li $a0 3
+           li $v0 1
+           syscall
+           b test_4
+           error_mxch:
+           la $a0 msg_error
+           li $v0 4
+           syscall
+           li $a0 3
+           li $v0 1
+           syscall
+           
+           test_4:
+           #imprimir salto de linea
+           la $a0, salto_linea
+           li $v0 4
+           syscall
+          
+           #Prueba 4: mmv. Resultado esperado n1 = 7, n2 = 7
+           mxch $t1 $t2 #Volvemos a poner los valores n1 y n2 como al principio
+           mmv $t1 $t2
+           lw $t4 ($t1)
+           lw $t5 ($t2)
+           bne $t4 $t5 error_mmv
+           #Imprimir OK
+           la  $a0 msg_ok
+           li  $v0 4
+           syscall
+           li $a0 4
+           li $v0 1
+           syscall
+           b test_5
+           error_mmv:
+           la $a0 msg_error
+           li $v0 4
+           syscall
+           li $a0 4
+           li $v0 1
+           syscall
+           
+           test_5:
+           #imprimir salto de linea
+           la $a0, salto_linea
+           li $v0 4
+           syscall
+          
+           #Prueba 5: mma. Resultado esperado destino = n1 + n2*n3
+           #Calculamos el resultado esperado
+           lw $s1 ($t1)
+           lw $s2 ($t2)
+           lw $s3 ($t3)
+           mul $s2 $s2 $s3
+           add $s1 $s1 $s2
+           #Caldulamos el resultado con mma
+           mma $t1 $t2 $t3
+           lw $t4 ($t1)
+           bne $s1 $t4 error_mma
+           #Imprimir OK
+           la  $a0 msg_ok
+           li  $v0 4
+           syscall
+           li $a0 5
+           li $v0 1
+           syscall
+           b config2
+           error_mma:
+           la $a0 msg_error
+           li $v0 4
+           syscall
+           li $a0 5
+           li $v0 1
+           syscall
+           
+           config2:
+           #Cambiamos los valores de las posiciones de la memoria para hacer las pruebas con numeros negativos
+           li $t4 -2
+           sw $t4 ($t1)
+           li $t4 -1
+           sw $t4 ($t2)
+           li $t4 1
+           sw $t4 ($t3)
+           li $t4 0
+           sw $t4 ($t0)
+           
+           test_6:
+           #imprimir salto de linea
+           la $a0, salto_linea
+           li $v0 4
+           syscall
+          
+           #Prueba 6: madd con numeros negativos 
+           madd $t0 $t1 $t2
+           lw $t4 ($t0)
+           li $t5 -3
+           bne $t4 $t5 error6
+           #Imprimir OK
+           la  $a0 msg_ok
+           li  $v0 4
+           syscall
+           li $a0 6
+           li $v0 1
+           syscall
+           b test_7
+           error6:
+           la $a0 msg_error
+           li $v0 4
+           syscall
+           li $a0 6
+           li $v0 1
+           syscall
+           
+           test_7:
+           #imprimir salto de linea
+           la $a0, salto_linea
+           li $v0 4
+           syscall
+          
+           #Prueba 7: madd con resultado 0
+           #Comprobar actualizacion de RS
+           madd $t0 $t2 $t3
+           lw $t4 ($t0)
+           li $t5 0
+           bne $t4 $t5 error7
+           #Imprimir OK
+           la  $a0 msg_ok
+           li  $v0 4
+           syscall
+           li $a0 7
+           li $v0 1
+           syscall
+           b test_8
+           error7:
+           la $a0 msg_error
+           li $v0 4
+           syscall
+           li $a0 7
+           li $v0 1
+           syscall
+           
+           test_8:
+           #imprimir salto de linea
+           la $a0, salto_linea
+           li $v0 4
+           syscall
+          
+           #Prueba 8: mma con operandos negativos
+           mma $t1 $t2 $t3
+           lw $t4 ($t1)
+           li $t5 -3
+           bne $t4 $t5 error8
+           #Imprimir OK
+           la  $a0 msg_ok
+           li  $v0 4
+           syscall
+           li $a0 8
+           li $v0 1
+           syscall
+           b test_9
+           error8:
+           la $a0 msg_error
+           li $v0 4
+           syscall
+           li $a0 8
+           li $v0 1
+           syscall
+           
+           test_9:
+           #imprimir salto de linea
+           la $a0, salto_linea
+           li $v0 4
+           syscall
+          
+           #Prueba 9: mma con resultado 0.
+           #Comprobar que RS no se actualiza
+           li $t4 0
+           sw $t4 ($t1)
+           li $t4 -1
+           sw $t4 ($t2)
+           li $t4 0
+           sw $t4 ($t3)
+           
+           mma $t1 $t2 $t3
+           lw $t4 ($t1)
+           li $t5 0
+           bne $t4 $t5 error8
+           #Imprimir OK
+           la  $a0 msg_ok
+           li  $v0 4
+           syscall
+           li $a0 9
+           li $v0 1
+           syscall
+           b test_10
+           error9:
+           la $a0 msg_error
+           li $v0 4
+           syscall
+           li $a0 9
+           li $v0 1
+           syscall
+           
+           test_10:
+           #imprimir salto de linea
+           la $a0, salto_linea
+           li $v0 4
+           syscall
+           
+           #Prueba 10: mmv con valor de rs1 = 0
+           #Comprobar que RS no se actualiza
+           li $t4 0
+           sw $t4 ($t1)
+           mmv $t2 $t1
+           lw $t4 ($t2)
+           li $t5 0
+           bne $t4 $t5 error10
+           #Imprimir OK
+           la  $a0 msg_ok
+           li  $v0 4
+           syscall
+           li $a0 10
+           li $v0 1
+           syscall
+           b test_11
+           error10:
+           la $a0 msg_error
+           li $v0 4
+           syscall
+           li $a0 10
+           li $v0 1
+           syscall
+           
+           test_11:
+           #imprimir salto de linea
+           la $a0, salto_linea
+           li $v0 4
+           syscall
+           
+           #Prueba 11: mmul con resultado negativo
+           #Comprobar que RS se actualiza
+           li $t4 1
+           sw $t4 ($t2)
+           li $t4 -1
+           sw $t4 ($t3)
+           mmul $t0 $t2 $t3
+           lw $t4 ($t0)
+           li $t5 -1
+           bne $t4 $t5 error11
+           #Imprimir OK
+           la  $a0 msg_ok
+           li  $v0 4
+           syscall
+           li $a0 11
+           li $v0 1
+           syscall
+           b test_12
+           error11:
+           la $a0 msg_error
+           li $v0 4
+           syscall
+           li $a0 11
+           li $v0 1
+           syscall
+           
+           test_12:
+           #imprimir salto de linea
+           la $a0, salto_linea
+           li $v0 4
+           syscall
+           
+           #Prueba 12: mmul con resultado negativo
+           #Comprobar que RS se actualiza
+           li $t4 0
+           sw $t4 ($t2)
+           li $t4 -1
+           sw $t4 ($t3)
+           mmul $t0 $t2 $t3
+           lw $t4 ($t0)
+           li $t5 0
+           bne $t4 $t5 error12
+           #Imprimir OK
+           la  $a0 msg_ok
+           li  $v0 4
+           syscall
+           li $a0 12
+           li $v0 1
+           syscall
+           b test_13
+           error12:
+           la $a0 msg_error
+           li $v0 4
+           syscall
+           li $a0 12
+           li $v0 1
+           syscall
+           
+           test_13:
+           #imprimir salto de linea
+           la $a0, salto_linea
+           li $v0 4
+           syscall
+           
+           #Prueba 13: madd con número positivo y otro negativo
+           li $t4 2
+           sw $t4 ($t1)
+           li $t4 -1
+           sw $t4 ($t2)
+           madd $t0 $t1 $t2
+           lw $t4 ($t0)
+           li $t5 1
+           bne $t4 $t5 error13
+           #Imprimir OK
+           la  $a0 msg_ok
+           li  $v0 4
+           syscall
+           li $a0 13
+           li $v0 1
+           syscall
+           b test_14
+           error13:
+           la $a0 msg_error
+           li $v0 4
+           syscall
+           li $a0 13
+           li $v0 1
+           syscall
+           
+           test_14:
+           #imprimir salto de linea
+           la $a0, salto_linea
+           li $v0 4
+           syscall
+           
+           #Prueba 14: mmul con número positivo y otro negativo
+           li $t4 2
+           sw $t4 ($t1)
+           li $t4 -1
+           sw $t4 ($t2)
+           mmul $t0 $t1 $t2
+           lw $t4 ($t0)
+           li $t5 -2
+           bne $t4 $t5 error14
+           #Imprimir OK
+           la  $a0 msg_ok
+           li  $v0 4
+           syscall
+           li $a0 14
+           li $v0 1
+           syscall
+           b test_15
+           error14:
+           la $a0 msg_error
+           li $v0 4
+           syscall
+           li $a0 14
+           li $v0 1
+           syscall
+           
+           test_15:
+           #imprimir salto de linea
+           la $a0, salto_linea
+           li $v0 4
+           syscall
+           
+           #Prueba 15: cambio de un valor no nulo y otro nulo
+           li $t4 0
+           sw $t4 ($t1)
+           li $t4 10
+           sw $t4 ($t2)
+           mxch $t1 $t2
+           lw $t4 ($t1)
+           lw $t5 ($t2)
+           li $t6 0
+           li $t7 10
+           bne $t5 $t6 error15
+           bne $t4 $t7 error15
+           #Imprimir OK
+           la  $a0 msg_ok
+           li  $v0 4
+           syscall
+           li $a0 15
+           li $v0 1
+           syscall
+           b fin
+           error15:
+           la $a0 msg_error
+           li $v0 4
+           syscall
+           li $a0 15
+           li $v0 1
+           syscall
+           
+           fin:
+           # the end
+           jr $ra
+
+
+
+
+
+
+
+
+
+
+
